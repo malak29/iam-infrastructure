@@ -1,0 +1,68 @@
+version: 3.8'
+
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: iam-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypont-initdb.d/
+    networks:
+      - iam-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: iam-redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - iam-network
+    restart: unless-stopped
+  
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: iam-vault
+    ports:
+      - "${VAULT_PORT}:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_ROOT_TOKEN}
+      VAULT_DEV_LISTEN_ADRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - iam-network
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: iam-mongodb
+    ports:
+      - "${MONGO_PORT}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - iam-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongodb_data:
+
+networks:
+  iam-network:
+    driver: bridge
