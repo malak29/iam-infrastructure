@@ -22,7 +22,7 @@ services:
     image: adminer:latest
     container_name: iam-adminer
     ports:
-      - "8080:8080"
+      - "8091:8091"
     depends_on:
       - postgres
     networks:
