@@ -68,6 +68,37 @@ services:
       - iam-network
     restart: unless-stopped
 
+#  notification-service:
+#    build:
+#      context: ../iam-notification-service
+#      dockerfile: Dockerfile
+#    container_name: iam-notification-service
+#    environment:
+#      SPRING_PROFILES_ACTIVE: docker
+#      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/iam_db
+#      SPRING_R2DBC_USERNAME: iam_malak
+#      SPRING_R2DBC_PASSWORD: Malak123
+#      SPRING_DATA_REDIS_HOST: redis
+#      SPRING_DATA_REDIS_PORT: 6379
+#      JWT_SECRET: docker-jwt-secret-key
+#      EMAIL_PROVIDER: smtp
+#      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+#      SMTP_USERNAME: ${SMTP_USERNAME}
+#      SMTP_PASSWORD: ${SMTP_PASSWORD}
+#      EMAIL_FROM: ${EMAIL_FROM:-noreply@iam-system.com}
+#      SMS_PROVIDER: mock
+#      AWS_ENABLED: false
+#    ports:
+#      - "8084:8084"
+#    depends_on:
+#      - postgres
+#      - redis
+#    networks:
+#      - iam-network
+#    volumes:
+#      - ./logs:/app/logs
+
+
 volumes:
   postgres_data:
   redis_data:
