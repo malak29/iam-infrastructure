@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15
+    container_name: iam-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iam_db
+      POSTGRES_USER: iam_malak
+      POSTGRES_PASSWORD: Malak123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../iam-database-postgres/schema:/docker-entrypoint-initdb.d
+    networks:
+      - iam-network
+
+  # Redis (from iam-redis-config)
+  redis:
+    extends:
+      file: ../iam-redis-config/docker-compose.yml
+      service: redis-standalone
+
+  # Vault (from iam-vault-config)  
+  vault:
+    extends:
+      file: ../iam-vault-config/docker-compose.yml
+      service: vault
+
+  # User Service
+  user-service:
+    build:
+      context: ../iam-user-service
+      dockerfile: Dockerfile
+    container_name: iam-user-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+      VAULT_HOST: vault
+      VAULT_PORT: 8200
+      VAULT_TOKEN: ${USER_SERVICE_VAULT_TOKEN:-}
+      # Fallback values if Vault is disabled
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/iam_db
+      SPRING_R2DBC_USERNAME: iam_malak
+      SPRING_R2DBC_PASSWORD: Malak123
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-docker-jwt-secret-key}
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - redis
+      - vault
+    networks:
+      - iam-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ../iam-auth-service
+      dockerfile: Dockerfile
+    container_name: iam-auth-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+      VAULT_HOST: vault
+      VAULT_PORT: 8200
+      VAULT_TOKEN: ${AUTH_SERVICE_VAULT_TOKEN:-}
+      # Fallback values if Vault is disabled
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/iam_db
+      SPRING_R2DBC_USERNAME: iam_malak
+      SPRING_R2DBC_PASSWORD: Malak123
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-docker-jwt-secret-key}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres
+      - redis
+      - vault
+      - user-service
+    networks:
+      - iam-network
+
+  # Authorization Service
+  authorization-service:
+    build:
+      context: ../iam-authorization-service
+      dockerfile: Dockerfile
+    container_name: iam-authorization-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+      VAULT_HOST: vault
+      VAULT_PORT: 8200
+      VAULT_TOKEN: ${AUTHORIZATION_SERVICE_VAULT_TOKEN:-}
+      # Fallback values
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/iam_db
+      SPRING_R2DBC_USERNAME: iam_malak
+      SPRING_R2DBC_PASSWORD: Malak123
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-docker-jwt-secret-key}
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres
+      - redis
+      - vault
+    networks:
+      - iam-network
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ../iam-notification-service
+      dockerfile: Dockerfile
+    container_name: iam-notification-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+      VAULT_HOST: vault
+      VAULT_PORT: 8200
+      VAULT_TOKEN: ${NOTIFICATION_SERVICE_VAULT_TOKEN:-}
+      # Fallback values
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/iam_db
+      SPRING_R2DBC_USERNAME: iam_malak
+      SPRING_R2DBC_PASSWORD: Malak123
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-docker-jwt-secret-key}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+      AWS_ENABLED: ${AWS_ENABLED:-false}
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres
+      - redis
+      - vault
+    networks:
+      - iam-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ../iam-api-gateway
+      dockerfile: Dockerfile
+    container_name: iam-api-gateway
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+      VAULT_HOST: vault
+      VAULT_PORT: 8200
+      VAULT_TOKEN: ${GATEWAY_VAULT_TOKEN:-}
+      # Service URLs
+      USER_SERVICE_URL: http://user-service:8081
+      AUTH_SERVICE_URL: http://auth-service:8082
+      AUTHORIZATION_SERVICE_URL: http://authorization-service:8083
+      NOTIFICATION_SERVICE_URL: http://notification-service:8084
+      # Fallback values
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-docker-jwt-secret-key}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - auth-service
+      - authorization-service
+      - notification-service
+      - redis
+      - vault
+    networks:
+      - iam-network
+
+volumes:
+  postgres_data:
+
+networks:
+  iam-network:
+    driver: bridge
